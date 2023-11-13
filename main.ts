@@ -139,35 +139,81 @@ export default class HelloWorld extends Plugin {
 			}
 		}
 
+		const delete_selection = (state: typeof State, view: MarkdownView) => {
+			view.editor.replaceSelection("");
+			state.targetCh = view.editor.getCursor().ch;
+		}
+
 		const handle_select = (state: typeof State, event: any, view: MarkdownView) => {
+			new Notice("we are in select");
+			view.editor.blur();
+
+			if(!event.defaultPrevented){
+				switch(event.key) {
+					case 'Escape': case 'v':
+						state.handler = handle_normal;
+						event.preventDefault();
+						state.handler(state, event, view);
+						return;
+					case 'h': case 'j': case 'k': case 'l': 
+						handle_hjkl(state, event, view);
+						break;
+					case 'd':
+						delete_selection(state, view);
+						break;
+					case 'u':
+						view.editor.undo();
+						break;
+					case 'U':
+						view.editor.redo();
+						break;
+				}
+			}
 			
+			if(state.anchor.valid){
+				view.editor.setSelection(state.anchor.position);
+			} else {
+				state.anchor.position = view.editor.getCursor();
+				state.anchor.valid = true;
+			}
 		}
 
 		const handle_normal = (state: typeof State, event: any, view: MarkdownView) => {
 
+			if(event.cancelable){
+				
+			}
 
 			// Do not allow typing cursor
 			view.editor.blur();
 
-			let curr = view.editor.getCursor();
 
-			if (curr == undefined) {
-				curr = {line: 0, ch: 0};
-			}
-
-			switch (event.key) {
-				case 'i':
-					state.mode = Mode.Insert;
-					state.handler = handle_insert;
-					state.handler(state, event, view);
-					return;
-				case 'v':
-					state.mode = Mode.Select;
-					state.handler = handle_select;
-					state.handler(state, event, view);
-				case 'h': case 'j': case 'k': case 'l': 
-					handle_hjkl(state, event, view);
-					break;
+			if(!event.defaultPrevented){
+				switch (event.key) {
+					case 'i':
+						state.mode = Mode.Insert;
+						state.handler = handle_insert;
+						state.handler(state, event, view);
+						return;
+					case 'v':
+						state.mode = Mode.Select;
+						state.handler = handle_select;
+						event.preventDefault();
+						state.handler(state, event, view);
+						return;
+					case 'h': case 'j': case 'k': case 'l': 
+						handle_hjkl(state, event, view);
+						break;
+					case 'd':
+						delete_selection(state, view);
+						break;
+					case 'u':
+						view.editor.undo();
+						break;
+					case 'U':
+						view.editor.redo();
+						break;
+				}
 			}
 
 
@@ -218,6 +264,13 @@ export default class HelloWorld extends Plugin {
 			handler:(state: any, event: any, view: MarkdownView) => handle_normal(state, event, view),
 			targetCh: 0,
 			numRepeat: -1,
+			anchor: {
+				valid: false,
+				position: {
+					ch: 0,
+					line: 0,
+				}
+			}
 		}
 
 
@@ -225,6 +278,7 @@ export default class HelloWorld extends Plugin {
 			
 			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 			if (view == undefined) return;
+			event.defaultPrevented
 			// switch(State.mode) {
 			// 	case Mode.Normal:
 			// 	case Mode.Visual:
