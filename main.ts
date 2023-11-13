@@ -1,4 +1,5 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { isNumberObject } from 'util/types';
 
 // Remember to rename these classes and interfaces!
 
@@ -16,8 +17,6 @@ export default class HelloWorld extends Plugin {
 	async onload() {
 		await this.loadSettings();
 
-		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-		view?.editor.blur();
 
 		// // This creates an icon in the left ribbon.
 		// const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
@@ -77,36 +76,140 @@ export default class HelloWorld extends Plugin {
 			console.log('click', evt);
 		});
 
+		const set_cursor_line_delta = (line_delta: number, state: typeof State, view: MarkdownView) => {
+
+			line_delta *= state.numRepeat;
+			state.numRepeat = 1;
+
+			let line_number = line_delta + view.editor.getCursor().line;
+
+			if (line_number < 0) {
+				line_number = 0;
+			} 
+			else if(line_number >=  view.editor.lineCount()) {
+				line_number = view.editor.lineCount() - 1;
+			}
+
+			if (view.editor.getLine(line_number).length < state.targetCh){
+				view.editor.setCursor(line_number, view.editor.getLine(line_number).length);
+			} else {
+				view.editor.setCursor(line_number, state.targetCh);						
+			}		
+		}
+
+		const set_cursor_ch_delta = (ch_delta: number, state: typeof State, view: MarkdownView) => {
+			if(state.numRepeat > 0){
+				ch_delta *= state.numRepeat;
+				state.numRepeat = -1;
+			}
+
+			const {line: currLine, ch: currCh} = view.editor.getCursor();
+			view.editor.setCursor(currLine, currCh + ch_delta);
+			state.targetCh = view.editor.getCursor().ch;
+		}
+
+		const handle_normal_visual = (state: typeof State, event: any, view: MarkdownView) => {
+
+
+			// Do not allow typing cursor
+			view.editor.blur();
+
+			let curr = view.editor.getCursor();
+			if (curr == undefined) {
+				curr = {line: 0, ch: 0};
+			}
+
+			// Switch to Insert
+			if(event.key == 'i') {
+				state.mode = Mode.Insert;
+				handle_insert(state, event, view);
+				return;
+			}
+
+			// Handle movment keys
+			// TODO: move this to a new function and split visual and normal
+			// TODO: there are significant issues with movement
+			switch(event.key){
+				case 'h':
+					set_cursor_ch_delta(-1, state, view);
+					break;
+				case 'j':
+					set_cursor_line_delta(1, state, view);
+					break;
+				case 'k':
+					set_cursor_line_delta(-1, state, view);
+					break;
+				case 'l':
+					set_cursor_ch_delta(1, state, view);
+					break;			
+			}
+
+			// If it is a digit
+			if(event.key.length == 1 && event.key.charAt(0) >= '0' && event.key.charAt(0) <= '9'){
+				const curr: number = event.key.charAt(0);
+
+				if(curr == 0 && state.numRepeat == -1) return;
+
+				if(state.numRepeat == -1) {
+					state.numRepeat = curr;
+				} else {
+					state.numRepeat *= 10;
+					state.numRepeat += curr;
+				}
+
+			} 
+
+			
+			view.editor.setSelection({line: view.editor.getCursor().line, ch: view.editor.getCursor().ch + 1},view.editor.getCursor());
+		}
+
+		const handle_insert = (state: typeof State, event: any, view: MarkdownView) => {
+
+			if(event.key == 'Escape'){
+				state.mode = Mode.Normal;
+
+				handle_normal_visual(state, event, view);
+				return;
+			}
+			
+			if(!view.editor.hasFocus()){
+				new Notice("we set focus");
+				view.editor.setSelection(view.editor.getCursor(), view.editor.getCursor());
+				event.preventDefault();
+				view.editor.focus();
+			}
+
+		}
+
+		enum Mode {
+			Normal,
+			Insert,
+			Visual,
+		}
 		
 		const State = {
 			command: [],
-			
+			mode: Mode.Normal,
+			targetCh: 0,
+			numRepeat: -1,
 		}
 
+
 		addEventListener("keydown", async (event) => {
+			
 			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-			if(event.key == 'h') {
-				let curr = view?.editor.getCursor();
-				if (curr == undefined) {
-					curr = {line: 0, ch: 0};
-				}
-				view?.editor.setCursor(curr.line, curr?.ch-1);
-				view?.editor.setSelection({line: view?.editor.getCursor().line, ch: view?.editor.getCursor().ch + 1},view?.editor.getCursor());
-			} else if(event.key == 'l') {
-				let curr = view?.editor.getCursor();
-				if (curr == undefined) {
-					curr = {line: 0, ch: 0};
-				}
-				view?.editor.setCursor(curr.line, curr?.ch+1);
-				view?.editor.setSelection({line: view?.editor.getCursor().line, ch: view?.editor.getCursor().ch + 1},view?.editor.getCursor());
-			} else if (event.key == 'i'){
-				view?.editor.setSelection(view?.editor.getCursor(), view?.editor.getCursor());
-				event.preventDefault();
-				view?.editor.focus();
-			} else if (event.key == 'Escape'){
-				view?.editor.blur();
-				view?.editor.setSelection({line: view?.editor.getCursor().line, ch: view?.editor.getCursor().ch + 1},view?.editor.getCursor());
+			if (view == undefined) return;
+			switch(State.mode) {
+				case Mode.Normal:
+				case Mode.Visual:
+					handle_normal_visual(State, event, view);
+					break;
+				case Mode.Insert:
+					handle_insert(State, event, view);
 			}
+
+
+			
 			// view?.editor.setCursor(0, 10);
 			// if (view?.editor.hasFocus()){
 			// 	view?.editor.blur();
