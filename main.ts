@@ -108,7 +108,7 @@ export default class HelloWorld extends Plugin {
 			state.targetCh = view.editor.getCursor().ch;
 		}
 
-		const handle_normal_visual = (state: typeof State, event: any, view: MarkdownView) => {
+		const handle_normal = (state: typeof State, event: any, view: MarkdownView) => {
 
 
 			// Do not allow typing cursor
@@ -122,7 +122,8 @@ export default class HelloWorld extends Plugin {
 			// Switch to Insert
 			if(event.key == 'i') {
 				state.mode = Mode.Insert;
-				handle_insert(state, event, view);
+				state.handler = handle_insert;
+				state.handler(state, event, view);
 				return;
 			}
 
@@ -166,9 +167,8 @@ export default class HelloWorld extends Plugin {
 		const handle_insert = (state: typeof State, event: any, view: MarkdownView) => {
 
 			if(event.key == 'Escape'){
-				state.mode = Mode.Normal;
-
-				handle_normal_visual(state, event, view);
+				state.handler = handle_normal;
+				state.handler(state, event, view);
 				return;
 			}
 			
@@ -190,6 +190,7 @@ export default class HelloWorld extends Plugin {
 		const State = {
 			command: [],
 			mode: Mode.Normal,
+			handler:(state: any, event: Event, view: MarkdownView) => handle_normal(state, event, view),
 			targetCh: 0,
 			numRepeat: -1,
 		}
@@ -199,14 +200,15 @@ export default class HelloWorld extends Plugin {
 			
 			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 			if (view == undefined) return;
-			switch(State.mode) {
-				case Mode.Normal:
-				case Mode.Visual:
-					handle_normal_visual(State, event, view);
-					break;
-				case Mode.Insert:
-					handle_insert(State, event, view);
-			}
+			// switch(State.mode) {
+			// 	case Mode.Normal:
+			// 	case Mode.Visual:
+			// 		handle_normal_visual(State, event, view);
+			// 		break;
+			// 	case Mode.Insert:
+			// 		handle_insert(State, event, view);
+			// }
+			State.handler(State, event, view);
 
 
 			
