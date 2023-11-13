@@ -78,8 +78,10 @@ export default class HelloWorld extends Plugin {
 
 		const set_cursor_line_delta = (line_delta: number, state: typeof State, view: MarkdownView) => {
 
-			line_delta *= state.numRepeat;
-			state.numRepeat = 1;
+			if(state.numRepeat > 0) {
+				line_delta *= state.numRepeat;
+				state.numRepeat = -1;
+			}
 
 			let line_number = line_delta + view.editor.getCursor().line;
 
@@ -104,32 +106,23 @@ export default class HelloWorld extends Plugin {
 			}
 
 			const {line: currLine, ch: currCh} = view.editor.getCursor();
-			view.editor.setCursor(currLine, currCh + ch_delta);
+			if (ch_delta < 0 && currCh + ch_delta < 0 && currLine > 0) {
+				let remaining_delta = ch_delta;
+				while (remaining_delta > 0) {
+					// TODO: figure out logic for line wrapping
+					if(view.editor.getCursor().line == 0){
+						break;
+					}
+				}
+				view.editor.setCursor(currLine )
+			} else {
+				view.editor.setCursor(currLine, currCh + ch_delta);
+			}
 			state.targetCh = view.editor.getCursor().ch;
 		}
 
-		const handle_normal = (state: typeof State, event: any, view: MarkdownView) => {
-
-
-			// Do not allow typing cursor
-			view.editor.blur();
-
-			let curr = view.editor.getCursor();
-			if (curr == undefined) {
-				curr = {line: 0, ch: 0};
-			}
-
-			// Switch to Insert
-			if(event.key == 'i') {
-				state.mode = Mode.Insert;
-				state.handler = handle_insert;
-				state.handler(state, event, view);
-				return;
-			}
-
-			// Handle movment keys
-			// TODO: move this to a new function and split visual and normal
-			// TODO: there are significant issues with movement
+		const handle_hjkl = (state: typeof State, event: any, view: MarkdownView) => {
+			
 			switch(event.key){
 				case 'h':
 					set_cursor_ch_delta(-1, state, view);
@@ -144,6 +137,39 @@ export default class HelloWorld extends Plugin {
 					set_cursor_ch_delta(1, state, view);
 					break;			
 			}
+		}
+
+		const handle_select = (state: typeof State, event: any, view: MarkdownView) => {
+			
+		}
+
+		const handle_normal = (state: typeof State, event: any, view: MarkdownView) => {
+
+
+			// Do not allow typing cursor
+			view.editor.blur();
+
+			let curr = view.editor.getCursor();
+
+			if (curr == undefined) {
+				curr = {line: 0, ch: 0};
+			}
+
+			switch (event.key) {
+				case 'i':
+					state.mode = Mode.Insert;
+					state.handler = handle_insert;
+					state.handler(state, event, view);
+					return;
+				case 'v':
+					state.mode = Mode.Select;
+					state.handler = handle_select;
+					state.handler(state, event, view);
+				case 'h': case 'j': case 'k': case 'l': 
+					handle_hjkl(state, event, view);
+					break;
+			}
+
 
 			// If it is a digit
 			if(event.key.length == 1 && event.key.charAt(0) >= '0' && event.key.charAt(0) <= '9'){
@@ -173,7 +199,6 @@ export default class HelloWorld extends Plugin {
 			}
 			
 			if(!view.editor.hasFocus()){
-				new Notice("we set focus");
 				view.editor.setSelection(view.editor.getCursor(), view.editor.getCursor());
 				event.preventDefault();
 				view.editor.focus();
@@ -184,13 +209,13 @@ export default class HelloWorld extends Plugin {
 		enum Mode {
 			Normal,
 			Insert,
-			Visual,
+			Select,
 		}
 		
 		const State = {
 			command: [],
 			mode: Mode.Normal,
-			handler:(state: any, event: Event, view: MarkdownView) => handle_normal(state, event, view),
+			handler:(state: any, event: any, view: MarkdownView) => handle_normal(state, event, view),
 			targetCh: 0,
 			numRepeat: -1,
 		}
