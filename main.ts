@@ -85,16 +85,27 @@ export default class HelloWorld extends Plugin {
 
 		addEventListener("keydown", async (event) => {
 			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-			if(event.key == 'l') {
+			if(event.key == 'h') {
+				let curr = view?.editor.getCursor();
+				if (curr == undefined) {
+					curr = {line: 0, ch: 0};
+				}
+				view?.editor.setCursor(curr.line, curr?.ch-1);
+				view?.editor.setSelection({line: view?.editor.getCursor().line, ch: view?.editor.getCursor().ch + 1},view?.editor.getCursor());
+			} else if(event.key == 'l') {
 				let curr = view?.editor.getCursor();
 				if (curr == undefined) {
 					curr = {line: 0, ch: 0};
 				}
 				view?.editor.setCursor(curr.line, curr?.ch+1);
+				view?.editor.setSelection({line: view?.editor.getCursor().line, ch: view?.editor.getCursor().ch + 1},view?.editor.getCursor());
 			} else if (event.key == 'i'){
+				view?.editor.setSelection(view?.editor.getCursor(), view?.editor.getCursor());
+				event.preventDefault();
 				view?.editor.focus();
 			} else if (event.key == 'Escape'){
 				view?.editor.blur();
+				view?.editor.setSelection({line: view?.editor.getCursor().line, ch: view?.editor.getCursor().ch + 1},view?.editor.getCursor());
 			}
 			// view?.editor.setCursor(0, 10);
 			// if (view?.editor.hasFocus()){
