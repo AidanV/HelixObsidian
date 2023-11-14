@@ -98,25 +98,56 @@ export default class HelloWorld extends Plugin {
 				view.editor.setCursor(line_number, state.targetCh);						
 			}		
 		}
-
+//numRepeat
 		const set_cursor_ch_delta = (ch_delta: number, state: typeof State, view: MarkdownView) => {
 			if(state.numRepeat > 0){
 				ch_delta *= state.numRepeat;
 				state.numRepeat = -1;
 			}
 
-			const {line: currLine, ch: currCh} = view.editor.getCursor();
-			if (ch_delta < 0 && currCh + ch_delta < 0 && currLine > 0) {
-				let remaining_delta = ch_delta;
-				while (remaining_delta > 0) {
-					// TODO: figure out logic for line wrapping
-					if(view.editor.getCursor().line == 0){
-						break;
+			// if (ch_delta < 0 && currCh + ch_delta <= 0 && currLine > 0) {
+			// 	let remaining_delta = ch_delta;
+			// 	while (remaining_delta > 0) {
+			// 		let temp = view.editor.getCursor().ch - remaining_delta;
+			// 		if(temp > 0){
+			// 			new Notice("temp > 0");
+			// 			const lineLength = view.editor.getLine(view.editor.getCursor().line).length;
+			// 			view.editor.setCursor(lineLength - remaining_delta);
+			// 			remaining_delta = 0;
+			// 			break;
+			// 		} else {
+			// 			new Notice("temp <= 0");
+			// 			const targetLine = view.editor.getCursor().line - 1;
+			// 			remaining_delta -= view.editor.getCursor().ch;
+			// 			view.editor.setCursor(targetLine, view.editor.getLine(targetLine).length)
+			// 		}
+			// 		// TODO: figure out logic for line wrapping
+			// 		if(view.editor.getCursor().line == 0){
+			// 			break;
+			// 		}
+			// 	}
+			// 	view.editor.setCursor(currLine)
+			// } else {
+			// 	new Notice("took else");
+			// 	view.editor.setCursor(currLine, currCh + ch_delta);
+			// }
+
+			//TODO: optimize
+			if(ch_delta < 0) {
+				for(let i = 0; i < Math.abs(ch_delta); i++){
+					let {line: currLine, ch: currCh} = view.editor.getCursor();
+					new Notice(ch_delta.toString());
+					if(currCh == 0){
+						view.editor.setCursor(currLine - 1, view.editor.getLine(currLine - 1).length);
+					} else {
+						view.editor.setCursor(currLine, currCh - 1);
 					}
 				}
-				view.editor.setCursor(currLine )
 			} else {
-				view.editor.setCursor(currLine, currCh + ch_delta);
+				for(let i = 0; i < Math.abs(ch_delta); i++){
+					let {line: currLine, ch: currCh} = view.editor.getCursor();
+					view.editor.setCursor(currLine, currCh + ch_delta);
+				}
 			}
 			state.targetCh = view.editor.getCursor().ch;
 		}
@@ -144,7 +175,7 @@ export default class HelloWorld extends Plugin {
 			state.targetCh = view.editor.getCursor().ch;
 		}
 
-		const handle_select = (state: typeof State, event: any, view: MarkdownView) => {
+		function handle_select (state: typeof State, event: any, view: MarkdownView)  {
 			new Notice("we are in select");
 			view.editor.blur();
 
@@ -179,10 +210,6 @@ export default class HelloWorld extends Plugin {
 		}
 
 		const handle_normal = (state: typeof State, event: any, view: MarkdownView) => {
-
-			if(event.cancelable){
-				
-			}
 
 			// Do not allow typing cursor
 			view.editor.blur();
@@ -219,7 +246,7 @@ export default class HelloWorld extends Plugin {
 
 			// If it is a digit
 			if(event.key.length == 1 && event.key.charAt(0) >= '0' && event.key.charAt(0) <= '9'){
-				const curr: number = event.key.charAt(0);
+				const curr: number = parseFloat(event.key.charAt(0));
 
 				if(curr == 0 && state.numRepeat == -1) return;
 
@@ -227,7 +254,7 @@ export default class HelloWorld extends Plugin {
 					state.numRepeat = curr;
 				} else {
 					state.numRepeat *= 10;
-					state.numRepeat += curr;
+					state.numRepeat = curr + state.numRepeat;
 				}
 
 			} 
@@ -298,7 +325,7 @@ export default class HelloWorld extends Plugin {
 			// 	view?.editor.focus();
 			// }
 			
-			new Notice(event.key);
+			// new Notice(event.key);
 		});
 
 		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
