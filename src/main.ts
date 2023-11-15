@@ -1,4 +1,4 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Editor, EditorPosition, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import { isNumberObject } from 'util/types';
 
 // Remember to rename these classes and interfaces!
@@ -98,39 +98,12 @@ export default class HelloWorld extends Plugin {
 				view.editor.setCursor(line_number, state.targetCh);						
 			}		
 		}
-//numRepeat
+
 		const set_cursor_ch_delta = (ch_delta: number, state: typeof State, view: MarkdownView) => {
 			if(state.numRepeat > 0){
 				ch_delta *= state.numRepeat;
 				state.numRepeat = -1;
 			}
-
-			// if (ch_delta < 0 && currCh + ch_delta <= 0 && currLine > 0) {
-			// 	let remaining_delta = ch_delta;
-			// 	while (remaining_delta > 0) {
-			// 		let temp = view.editor.getCursor().ch - remaining_delta;
-			// 		if(temp > 0){
-			// 			new Notice("temp > 0");
-			// 			const lineLength = view.editor.getLine(view.editor.getCursor().line).length;
-			// 			view.editor.setCursor(lineLength - remaining_delta);
-			// 			remaining_delta = 0;
-			// 			break;
-			// 		} else {
-			// 			new Notice("temp <= 0");
-			// 			const targetLine = view.editor.getCursor().line - 1;
-			// 			remaining_delta -= view.editor.getCursor().ch;
-			// 			view.editor.setCursor(targetLine, view.editor.getLine(targetLine).length)
-			// 		}
-			// 		// TODO: figure out logic for line wrapping
-			// 		if(view.editor.getCursor().line == 0){
-			// 			break;
-			// 		}
-			// 	}
-			// 	view.editor.setCursor(currLine)
-			// } else {
-			// 	new Notice("took else");
-			// 	view.editor.setCursor(currLine, currCh + ch_delta);
-			// }
 
 			//TODO: optimize
 			if(ch_delta < 0) {
@@ -152,7 +125,7 @@ export default class HelloWorld extends Plugin {
 			state.targetCh = view.editor.getCursor().ch;
 		}
 
-		const handle_hjkl = (state: typeof State, event: any, view: MarkdownView) => {
+		const hjkl_move = (state: typeof State, event: any, view: MarkdownView) => {
 			
 			switch(event.key){
 				case 'h':
@@ -168,6 +141,89 @@ export default class HelloWorld extends Plugin {
 					set_cursor_ch_delta(1, state, view);
 					break;			
 			}
+		}
+
+		// some cute regex ONLY ONE CHAR
+		const isalpha = (c: string) => {
+			return /^[a-zA-z]$/.test(c);
+		}
+		const isnum = (c: string) => {
+			return /^\d$/.test(c);
+		}
+		const iswhite = (c: string) => {
+			return /^\s$/.test(c);
+		}
+
+		enum LetterType {
+			ALPHA,
+			NUM,
+			WHITE,
+			PUNC
+		}
+
+		const getLetterType = (c: string) => {
+			if(isalpha(c)) {
+				return LetterType.ALPHA;
+			} else if (isnum(c)) {
+				return LetterType.NUM;
+			} else if (iswhite(c)) {
+				return LetterType.WHITE;
+			} else {
+				return LetterType.PUNC;
+			}
+		}
+		const getChFromPosition = (view: MarkdownView) => {
+			const {line: currLine, ch: currCh} = view.editor.getCursor();
+			// for  the number of lines before the current line sum the length of the lines
+			let lineLengths = [0]
+
+			for(let i = 0; i < currLine; i++){
+				lineLengths.push(view.editor.getLine(i).length);
+			}
+			const v = lineLengths.reduce((acc, x) => acc + x) + currCh;
+			new Notice(v.toString());
+			return v
+		}
+
+
+		const word_move = (state: typeof State, view: MarkdownView) => {
+			// find current cursor character position
+			new Notice("before get ch from position");
+			const initialSelectPosition = view.editor.getCursor();
+			initialSelectPosition.ch += 1;
+			const initialWordPos = getChFromPosition(view);
+			new Notice(initialWordPos.toString());
+			let currWordFindPos = 1 + initialWordPos;
+			// get document as a string
+			const document: string = view.editor.getValue();
+
+			if(currWordFindPos >= document.length) return;
+
+			//word;word()word/  word*%*   word$word%()*3$#@$#@-.,~``
+
+			let currType = getLetterType(document[currWordFindPos]);
+
+			while(currWordFindPos < document.length - 1){
+
+				const newType = getLetterType(document[currWordFindPos + 1]);
+
+				if(newType != LetterType.WHITE && newType != currType) break;
+
+				currType = newType;
+
+				currWordFindPos++;
+			}
+
+			view.editor.setCursor(0, currWordFindPos);
+			
+			//TODO: this gets overwritten by normal mode -> make that not happen
+			view.editor.setSelection(initialSelectPosition, view.editor.getCursor());
+
+			// view.editor.setSelection({line: 0, ch: currWordFindPos}, {line: 0, ch: initialWordPos})
+			// if not anchored
+				// select the next word
+			// else
+				// move cursor to next word
 		}
 
 		const delete_selection = (state: typeof State, view: MarkdownView) => {
@@ -187,7 +243,7 @@ export default class HelloWorld extends Plugin {
 						state.handler(state, event, view);
 						return;
 					case 'h': case 'j': case 'k': case 'l': 
-						handle_hjkl(state, event, view);
+						hjkl_move(state, event, view);
 						break;
 					case 'd':
 						delete_selection(state, view);
@@ -207,7 +263,7 @@ export default class HelloWorld extends Plugin {
 				state.anchor.position = view.editor.getCursor();
 				state.anchor.valid = true;
 			}
-		}
+	}
 
 		const handle_normal = (state: typeof State, event: any, view: MarkdownView) => {
 
@@ -229,7 +285,7 @@ export default class HelloWorld extends Plugin {
 						state.handler(state, event, view);
 						return;
 					case 'h': case 'j': case 'k': case 'l': 
-						handle_hjkl(state, event, view);
+						hjkl_move(state, event, view);
 						break;
 					case 'd':
 						delete_selection(state, view);
@@ -240,12 +296,19 @@ export default class HelloWorld extends Plugin {
 					case 'U':
 						view.editor.redo();
 						break;
+					case 'w':
+						new Notice("word move");
+						word_move(state, view);
+						new Notice("after word move");
+						break;
+						
 				}
 			}
 
 
 			// If it is a digit
-			if(event.key.length == 1 && event.key.charAt(0) >= '0' && event.key.charAt(0) <= '9'){
+			if(isnum(event.key.charAt(0))){
+			// if(event.key.length == 1 && event.key.charAt(0) >= '0' && event.key.charAt(0) <= '9'){
 				const curr: number = parseFloat(event.key.charAt(0));
 
 				if(curr == 0 && state.numRepeat == -1) return;
