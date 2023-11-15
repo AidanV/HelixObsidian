@@ -172,6 +172,7 @@ export default class HelloWorld extends Plugin {
 				return LetterType.PUNC;
 			}
 		}
+
 		const getChFromPosition = (view: MarkdownView) => {
 			const {line: currLine, ch: currCh} = view.editor.getCursor();
 			// for  the number of lines before the current line sum the length of the lines
@@ -180,7 +181,7 @@ export default class HelloWorld extends Plugin {
 			for(let i = 0; i < currLine; i++){
 				lineLengths.push(view.editor.getLine(i).length);
 			}
-			const v = lineLengths.reduce((acc, x) => acc + x) + currCh;
+			const v = lineLengths.reduce((acc, x) => acc + x + 1 /*newline*/) + currCh;
 			new Notice(v.toString());
 			return v
 		}
@@ -188,11 +189,11 @@ export default class HelloWorld extends Plugin {
 
 		const word_move = (state: typeof State, view: MarkdownView) => {
 			// find current cursor character position
-			new Notice("before get ch from position");
+			// new Notice("before get ch from position");
 			const initialSelectPosition = view.editor.getCursor();
 			initialSelectPosition.ch += 1;
 			const initialWordPos = getChFromPosition(view);
-			new Notice(initialWordPos.toString());
+			// new Notice(initialWordPos.toString());
 			let currWordFindPos = 1 + initialWordPos;
 			// get document as a string
 			const document: string = view.editor.getValue();
@@ -214,11 +215,14 @@ export default class HelloWorld extends Plugin {
 				currWordFindPos++;
 			}
 
+			new Notice(currWordFindPos.toString());
 			view.editor.setCursor(0, currWordFindPos);
 			
 			//TODO: this gets overwritten by normal mode -> make that not happen
-			view.editor.setSelection(initialSelectPosition, view.editor.getCursor());
+			// view.editor.setSelection(initialSelectPosition, view.editor.getCursor());
 
+			state.anchor.position = initialSelectPosition;
+			state.anchor.valid = true;
 			// view.editor.setSelection({line: 0, ch: currWordFindPos}, {line: 0, ch: initialWordPos})
 			// if not anchored
 				// select the next word
@@ -285,11 +289,13 @@ export default class HelloWorld extends Plugin {
 						state.handler(state, event, view);
 						return;
 					case 'h': case 'j': case 'k': case 'l': 
+						state.anchor.valid = false;
 						hjkl_move(state, event, view);
 						break;
 					case 'd':
 						delete_selection(state, view);
 						break;
+						// ai  j
 					case 'u':
 						view.editor.undo();
 						break;
@@ -300,6 +306,9 @@ export default class HelloWorld extends Plugin {
 						new Notice("word move");
 						word_move(state, view);
 						new Notice("after word move");
+						break;
+					case ';':
+						state.anchor.valid = false;
 						break;
 						
 				}
@@ -322,8 +331,11 @@ export default class HelloWorld extends Plugin {
 
 			} 
 
-			
-			view.editor.setSelection({line: view.editor.getCursor().line, ch: view.editor.getCursor().ch + 1},view.editor.getCursor());
+			if(state.anchor.valid){
+				view.editor.setSelection(state.anchor.position, {line: view.editor.getCursor().line, ch: view.editor.getCursor().ch + 1})
+			} else {
+				view.editor.setSelection({line: view.editor.getCursor().line, ch: view.editor.getCursor().ch + 1},view.editor.getCursor());
+			}
 		}
 
 		const handle_insert = (state: typeof State, event: any, view: MarkdownView) => {
